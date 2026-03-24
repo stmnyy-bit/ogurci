@@ -1,0 +1,6 @@
+print("Проект по SQLite и Python готов.")
+print("Запускай отдельные файлы по разделам, например:")
+print("python 01_setup.py")
+print("python 02_create_tables.py")
+print("python 03_crud.py")
+print("python 08_usage_example.py")
