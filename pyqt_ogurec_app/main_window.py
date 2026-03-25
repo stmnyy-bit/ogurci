@@ -3,10 +3,10 @@ from pathlib import Path
 
 from PyQt5 import QtCore, QtWidgets
 
-from pyqt_ogurec_app.config import APP_SUBTITLE, APP_TITLE
+from pyqt_ogurec_app.config import APP_TITLE
 from pyqt_ogurec_app.database import DatabaseManager
 from pyqt_ogurec_app.dialogs import ClientDialog, TelevisionDialog
-from pyqt_ogurec_app.widgets import SearchPanel, SummaryPanel
+from pyqt_ogurec_app.widgets import DataTable
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -21,7 +21,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_view_columns = []
 
         self.setWindowTitle(f"{APP_TITLE} - {user.display_name}")
-        self.resize(1180, 780)
+        self.resize(1080, 760)
 
         self._build_ui()
         self._connect_signals()
@@ -31,64 +31,47 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_ui(self) -> None:
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
-        root_layout = QtWidgets.QVBoxLayout(central)
+
+        root_layout = QtWidgets.QGridLayout(central)
         root_layout.setContentsMargins(10, 10, 10, 10)
-        root_layout.setSpacing(8)
+        root_layout.setHorizontalSpacing(10)
+        root_layout.setVerticalSpacing(10)
 
-        header_layout = QtWidgets.QHBoxLayout()
-        title_layout = QtWidgets.QVBoxLayout()
-        title_label = QtWidgets.QLabel(APP_TITLE)
-        title_font = title_label.font()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        subtitle_label = QtWidgets.QLabel(APP_SUBTITLE)
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(subtitle_label)
-        header_layout.addLayout(title_layout)
-        header_layout.addStretch(1)
+        root_layout.addWidget(self._build_database_group(), 0, 0, 1, 2)
+        root_layout.addWidget(self._build_televisions_group(), 1, 0)
+        root_layout.addWidget(self._build_clients_group(), 1, 1)
+        root_layout.addWidget(self._build_views_group(), 2, 0, 1, 2)
+        root_layout.setColumnStretch(0, 1)
+        root_layout.setColumnStretch(1, 1)
+        root_layout.setRowStretch(1, 3)
+        root_layout.setRowStretch(2, 2)
 
-        self.user_label = QtWidgets.QLabel(
-            f"Пользователь: {self.user.display_name}"
-        )
-        header_layout.addWidget(self.user_label)
-        root_layout.addLayout(header_layout)
-
-        db_group = QtWidgets.QGroupBox("База данных")
-        db_layout = QtWidgets.QHBoxLayout(db_group)
-        db_layout.addWidget(QtWidgets.QLabel("Файл базы:"))
-
-        self.db_path_edit = QtWidgets.QLineEdit(self.db.db_path)
-        db_layout.addWidget(self.db_path_edit, stretch=1)
-
-        self.browse_db_button = QtWidgets.QPushButton("Выбрать файл")
-        self.reconnect_button = QtWidgets.QPushButton("Подключить")
-        db_layout.addWidget(self.browse_db_button)
-        db_layout.addWidget(self.reconnect_button)
-        root_layout.addWidget(db_group)
-
-        self.summary_panel = SummaryPanel("Сведения")
-        root_layout.addWidget(self.summary_panel)
-
-        top_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        top_splitter.addWidget(self._build_televisions_tab())
-        top_splitter.addWidget(self._build_clients_tab())
-        top_splitter.setStretchFactor(0, 1)
-        top_splitter.setStretchFactor(1, 1)
-        root_layout.addWidget(top_splitter, stretch=3)
-
-        root_layout.addWidget(self._build_views_tab(), stretch=2)
-
+        self.stats_label = QtWidgets.QLabel("")
+        self.statusBar().addPermanentWidget(self.stats_label)
         self.statusBar().showMessage("Готово к работе")
 
-    def _build_televisions_tab(self) -> QtWidgets.QGroupBox:
+    def _build_database_group(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Подключение к базе")
+        layout = QtWidgets.QGridLayout(group)
+
+        layout.addWidget(QtWidgets.QLabel("Файл базы:"), 0, 0)
+        self.db_path_edit = QtWidgets.QLineEdit(self.db.db_path)
+        layout.addWidget(self.db_path_edit, 0, 1)
+
+        self.browse_db_button = QtWidgets.QPushButton("Выбрать")
+        self.reconnect_button = QtWidgets.QPushButton("Открыть")
+        layout.addWidget(self.browse_db_button, 0, 2)
+        layout.addWidget(self.reconnect_button, 0, 3)
+
+        return group
+
+    def _build_televisions_group(self) -> QtWidgets.QGroupBox:
         group = QtWidgets.QGroupBox("Телевизоры")
         layout = QtWidgets.QVBoxLayout(group)
-        layout.setSpacing(8)
 
-        panel = SearchPanel("Фильтр")
+        filter_layout = QtWidgets.QGridLayout()
         self.tv_search_edit = QtWidgets.QLineEdit()
-        self.tv_search_edit.setPlaceholderText("Поиск по коду, модели или производителю")
+        self.tv_search_edit.setPlaceholderText("Код, модель или производитель")
         self.tv_manufacturer_combo = QtWidgets.QComboBox()
         self.tv_discount_spin = QtWidgets.QSpinBox()
         self.tv_discount_spin.setRange(0, 100)
@@ -97,84 +80,91 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tv_sort_combo.addItem("Цена по возрастанию", "price_asc")
         self.tv_sort_combo.addItem("Скидка по убыванию", "discount_desc")
         self.tv_sort_combo.addItem("Модель А-Я", "model_asc")
-        panel.add_row(0, "Поиск:", self.tv_search_edit)
-        panel.add_row(1, "Производитель:", self.tv_manufacturer_combo)
-        panel.add_row(2, "Минимальная скидка:", self.tv_discount_spin)
-        panel.add_row(3, "Сортировка:", self.tv_sort_combo)
-        layout.addWidget(panel)
+
+        filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 0, 0)
+        filter_layout.addWidget(self.tv_search_edit, 0, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Производитель:"), 1, 0)
+        filter_layout.addWidget(self.tv_manufacturer_combo, 1, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Мин. скидка:"), 2, 0)
+        filter_layout.addWidget(self.tv_discount_spin, 2, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Сортировка:"), 3, 0)
+        filter_layout.addWidget(self.tv_sort_combo, 3, 1)
+        layout.addLayout(filter_layout)
 
         button_row = QtWidgets.QHBoxLayout()
-        self.add_tv_button = QtWidgets.QPushButton("Добавить телевизор")
+        self.add_tv_button = QtWidgets.QPushButton("Добавить")
         self.edit_tv_button = QtWidgets.QPushButton("Изменить")
         self.delete_tv_button = QtWidgets.QPushButton("Удалить")
-        self.refresh_tv_button = QtWidgets.QPushButton("Обновить вкладку")
-        for button in [
+        self.refresh_tv_button = QtWidgets.QPushButton("Обновить")
+        for button in (
             self.add_tv_button,
             self.edit_tv_button,
             self.delete_tv_button,
             self.refresh_tv_button,
-        ]:
+        ):
             button_row.addWidget(button)
         layout.addLayout(button_row)
 
         self.television_table = self._create_table_widget()
         layout.addWidget(self.television_table, stretch=1)
-
         return group
 
-    def _build_clients_tab(self) -> QtWidgets.QGroupBox:
+    def _build_clients_group(self) -> QtWidgets.QGroupBox:
         group = QtWidgets.QGroupBox("Заказы")
         layout = QtWidgets.QVBoxLayout(group)
-        layout.setSpacing(8)
 
-        panel = SearchPanel("Фильтр")
+        filter_layout = QtWidgets.QGridLayout()
         self.client_search_edit = QtWidgets.QLineEdit()
-        self.client_search_edit.setPlaceholderText("Поиск по заказам, ФИО, городу или модели")
+        self.client_search_edit.setPlaceholderText("Номер, ФИО, город или модель")
         self.client_place_combo = QtWidgets.QComboBox()
         self.client_sort_combo = QtWidgets.QComboBox()
         self.client_sort_combo.addItem("Новые сверху", "date_desc")
         self.client_sort_combo.addItem("Старые сверху", "date_asc")
         self.client_sort_combo.addItem("ФИО А-Я", "name_asc")
         self.client_sort_combo.addItem("Количество по убыванию", "quantity_desc")
-        panel.add_row(0, "Поиск:", self.client_search_edit)
-        panel.add_row(1, "Город:", self.client_place_combo)
-        panel.add_row(2, "Сортировка:", self.client_sort_combo)
-        layout.addWidget(panel)
+
+        filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 0, 0)
+        filter_layout.addWidget(self.client_search_edit, 0, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Город:"), 1, 0)
+        filter_layout.addWidget(self.client_place_combo, 1, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Сортировка:"), 2, 0)
+        filter_layout.addWidget(self.client_sort_combo, 2, 1)
+        layout.addLayout(filter_layout)
 
         button_row = QtWidgets.QHBoxLayout()
-        self.add_client_button = QtWidgets.QPushButton("Добавить заказ")
+        self.add_client_button = QtWidgets.QPushButton("Добавить")
         self.edit_client_button = QtWidgets.QPushButton("Изменить")
         self.delete_client_button = QtWidgets.QPushButton("Удалить")
-        self.refresh_client_button = QtWidgets.QPushButton("Обновить вкладку")
-        for button in [
+        self.refresh_client_button = QtWidgets.QPushButton("Обновить")
+        for button in (
             self.add_client_button,
             self.edit_client_button,
             self.delete_client_button,
             self.refresh_client_button,
-        ]:
+        ):
             button_row.addWidget(button)
         layout.addLayout(button_row)
 
         self.client_table = self._create_table_widget()
         layout.addWidget(self.client_table, stretch=1)
-
         return group
 
-    def _build_views_tab(self) -> QtWidgets.QGroupBox:
-        group = QtWidgets.QGroupBox("Представления и SQL")
+    def _build_views_group(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Представления")
         layout = QtWidgets.QVBoxLayout(group)
-        layout.setSpacing(8)
 
-        panel = SearchPanel("Параметры")
+        filter_layout = QtWidgets.QGridLayout()
         self.view_combo = QtWidgets.QComboBox()
         self.view_search_edit = QtWidgets.QLineEdit()
-        self.view_search_edit.setPlaceholderText("Фильтр по текущему представлению")
-        panel.add_row(0, "VIEW:", self.view_combo)
-        panel.add_row(1, "Поиск:", self.view_search_edit)
-        layout.addWidget(panel)
+        self.view_search_edit.setPlaceholderText("Поиск по строкам представления")
+        filter_layout.addWidget(QtWidgets.QLabel("VIEW:"), 0, 0)
+        filter_layout.addWidget(self.view_combo, 0, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 1, 0)
+        filter_layout.addWidget(self.view_search_edit, 1, 1)
+        layout.addLayout(filter_layout)
 
         button_row = QtWidgets.QHBoxLayout()
-        self.refresh_view_button = QtWidgets.QPushButton("Обновить VIEW")
+        self.refresh_view_button = QtWidgets.QPushButton("Обновить")
         self.export_view_button = QtWidgets.QPushButton("Экспорт CSV")
         button_row.addWidget(self.refresh_view_button)
         button_row.addWidget(self.export_view_button)
@@ -183,25 +173,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view_table = self._create_table_widget()
         layout.addWidget(self.view_table, stretch=1)
 
-        sql_box = QtWidgets.QGroupBox("SQL код")
-        sql_layout = QtWidgets.QVBoxLayout(sql_box)
+        layout.addWidget(QtWidgets.QLabel("SQL код:"))
         self.view_sql_text = QtWidgets.QPlainTextEdit()
         self.view_sql_text.setReadOnly(True)
-        self.view_sql_text.setMaximumHeight(180)
-        sql_layout.addWidget(self.view_sql_text)
-        layout.addWidget(sql_box)
+        self.view_sql_text.setMaximumHeight(160)
+        layout.addWidget(self.view_sql_text)
 
         return group
 
     def _create_table_widget(self) -> QtWidgets.QTableWidget:
-        table = QtWidgets.QTableWidget()
-        table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        table.setAlternatingRowColors(True)
-        table.verticalHeader().setVisible(False)
-        table.horizontalHeader().setStretchLastSection(True)
-        return table
+        return DataTable()
 
     def _connect_signals(self) -> None:
         self.browse_db_button.clicked.connect(self.choose_database_file)
@@ -301,15 +282,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refresh_dashboard(self) -> None:
         stats = self.db.dashboard_stats()
-        summary_text = (
-            f'Телевизоров: {stats["television_count"]}    '
-            f'Заказов: {stats["order_count"]}    '
-            f'VIEW: {stats["view_count"]}\n'
-            f'Средняя цена: {self._format_money(stats["average_price"])}    '
-            f'Сумма заказов: {self._format_money(stats["total_revenue"])}    '
-            f'Лидер: {stats["top_manufacturer"]}'
+        self.stats_label.setText(
+            f'ТВ: {stats["television_count"]} | '
+            f'Заказы: {stats["order_count"]} | '
+            f'VIEW: {stats["view_count"]}'
         )
-        self.summary_panel.set_text(summary_text)
 
     def load_televisions(self) -> None:
         if not self.db.connection:
@@ -442,7 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         try:
             self.db.delete_television(int(row["tv_code"]))
-            self.refresh_after_write("Телевизор удалён.")
+            self.refresh_after_write("Телевизор удален.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
@@ -470,7 +447,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         try:
             self.db.update_client(int(row["order_number"]), dialog.get_data())
-            self.refresh_after_write("Заказ обновлён.")
+            self.refresh_after_write("Заказ обновлен.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
@@ -490,7 +467,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         try:
             self.db.delete_client(int(row["order_number"]))
-            self.refresh_after_write("Заказ удалён.")
+            self.refresh_after_write("Заказ удален.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
@@ -520,7 +497,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 writer.writerow(self.current_view_columns)
                 for row in self.current_view_rows:
                     writer.writerow([row.get(column, "") for column in self.current_view_columns])
-            self.statusBar().showMessage(f"CSV сохранён: {path}", 5000)
+            self.statusBar().showMessage(f"CSV сохранен: {path}", 5000)
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка экспорта", str(exc))
 
@@ -539,10 +516,3 @@ class MainWindow(QtWidgets.QMainWindow):
     @staticmethod
     def _is_number(value) -> bool:
         return isinstance(value, (int, float))
-
-    @staticmethod
-    def _format_money(value) -> str:
-        if value is None:
-            return "0,00 руб."
-        formatted = f"{float(value):,.2f}".replace(",", " ").replace(".", ",")
-        return f"{formatted} руб."
