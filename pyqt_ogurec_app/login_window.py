@@ -34,9 +34,11 @@ class LoginDialog(QtWidgets.QDialog):
 
         self.username_edit = QtWidgets.QLineEdit()
         self.username_edit.setPlaceholderText("admin / manager / viewer")
+        self.username_edit.setClearButtonEnabled(True)
         self.password_edit = QtWidgets.QLineEdit()
         self.password_edit.setPlaceholderText("Введите пароль")
         self.password_edit.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.password_edit.setClearButtonEnabled(True)
 
         form_layout.addRow("Логин:", self.username_edit)
         form_layout.addRow("Пароль:", self.password_edit)
@@ -61,6 +63,10 @@ class LoginDialog(QtWidgets.QDialog):
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
+
+        self.username_edit.returnPressed.connect(self.password_edit.setFocus)
+        self.password_edit.returnPressed.connect(self.accept)
+        self.username_edit.setFocus()
 
     def accept(self) -> None:
         username = self.username_edit.text().strip()
