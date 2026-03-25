@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtWidgets
 from pyqt_ogurec_app.config import APP_SUBTITLE, APP_TITLE
 from pyqt_ogurec_app.database import DatabaseManager
 from pyqt_ogurec_app.dialogs import ClientDialog, TelevisionDialog
-from pyqt_ogurec_app.widgets import SearchPanel, StatCard
+from pyqt_ogurec_app.widgets import SearchPanel, SummaryPanel
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -21,7 +21,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_view_columns = []
 
         self.setWindowTitle(f"{APP_TITLE} - {user.display_name}")
-        self.resize(1380, 860)
+        self.resize(1180, 780)
 
         self._build_ui()
         self._connect_signals()
@@ -32,43 +32,31 @@ class MainWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         root_layout = QtWidgets.QVBoxLayout(central)
-        root_layout.setContentsMargins(18, 18, 18, 18)
-        root_layout.setSpacing(14)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(8)
 
-        header_frame = QtWidgets.QFrame()
-        header_frame.setObjectName("cardFrame")
-        header_layout = QtWidgets.QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(18, 18, 18, 18)
-
+        header_layout = QtWidgets.QHBoxLayout()
         title_layout = QtWidgets.QVBoxLayout()
         title_label = QtWidgets.QLabel(APP_TITLE)
-        title_label.setObjectName("titleLabel")
-        title_layout.addWidget(title_label)
+        title_font = title_label.font()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
         subtitle_label = QtWidgets.QLabel(APP_SUBTITLE)
-        subtitle_label.setObjectName("subtitleLabel")
+        title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
         header_layout.addLayout(title_layout)
         header_layout.addStretch(1)
 
-        user_layout = QtWidgets.QVBoxLayout()
         self.user_label = QtWidgets.QLabel(
-            f"Пользователь: {self.user.username} ({self.user.display_name})"
+            f"Пользователь: {self.user.display_name}"
         )
-        self.user_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-        self.role_badge = QtWidgets.QLabel(self.user.role)
-        self.role_badge.setObjectName("roleBadge")
-        self.role_badge.setAlignment(QtCore.Qt.AlignCenter)
-        user_layout.addWidget(self.user_label)
-        user_layout.addWidget(self.role_badge, alignment=QtCore.Qt.AlignRight)
-        header_layout.addLayout(user_layout)
-        root_layout.addWidget(header_frame)
+        header_layout.addWidget(self.user_label)
+        root_layout.addLayout(header_layout)
 
-        db_frame = QtWidgets.QFrame()
-        db_frame.setObjectName("cardFrame")
-        db_layout = QtWidgets.QHBoxLayout(db_frame)
-        db_layout.setContentsMargins(16, 16, 16, 16)
-        db_layout.setSpacing(10)
-        db_layout.addWidget(QtWidgets.QLabel("Файл базы данных:"))
+        db_group = QtWidgets.QGroupBox("База данных")
+        db_layout = QtWidgets.QHBoxLayout(db_group)
+        db_layout.addWidget(QtWidgets.QLabel("Файл базы:"))
 
         self.db_path_edit = QtWidgets.QLineEdit(self.db.db_path)
         db_layout.addWidget(self.db_path_edit, stretch=1)
@@ -77,41 +65,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.reconnect_button = QtWidgets.QPushButton("Подключить")
         db_layout.addWidget(self.browse_db_button)
         db_layout.addWidget(self.reconnect_button)
-        root_layout.addWidget(db_frame)
+        root_layout.addWidget(db_group)
 
-        stats_layout = QtWidgets.QHBoxLayout()
-        stats_layout.setSpacing(12)
-        self.tv_card = StatCard("Телевизоры", "#1f6fb2")
-        self.orders_card = StatCard("Заказы", "#2d8a50")
-        self.views_card = StatCard("VIEW", "#8a5c0d")
-        self.average_price_card = StatCard("Средняя цена", "#8f3e97")
-        self.revenue_card = StatCard("Сумма заказов", "#a33a2a")
-        for card in [
-            self.tv_card,
-            self.orders_card,
-            self.views_card,
-            self.average_price_card,
-            self.revenue_card,
-        ]:
-            stats_layout.addWidget(card)
-        root_layout.addLayout(stats_layout)
+        self.summary_panel = SummaryPanel("Сведения")
+        root_layout.addWidget(self.summary_panel)
 
-        self.tab_widget = QtWidgets.QTabWidget()
-        root_layout.addWidget(self.tab_widget, stretch=1)
+        top_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        top_splitter.addWidget(self._build_televisions_tab())
+        top_splitter.addWidget(self._build_clients_tab())
+        top_splitter.setStretchFactor(0, 1)
+        top_splitter.setStretchFactor(1, 1)
+        root_layout.addWidget(top_splitter, stretch=3)
 
-        self._build_televisions_tab()
-        self._build_clients_tab()
-        self._build_views_tab()
+        root_layout.addWidget(self._build_views_tab(), stretch=2)
 
         self.statusBar().showMessage("Готово к работе")
 
-    def _build_televisions_tab(self) -> None:
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+    def _build_televisions_tab(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Телевизоры")
+        layout = QtWidgets.QVBoxLayout(group)
+        layout.setSpacing(8)
 
-        panel = SearchPanel("Каталог телевизоров")
+        panel = SearchPanel("Фильтр")
         self.tv_search_edit = QtWidgets.QLineEdit()
         self.tv_search_edit.setPlaceholderText("Поиск по коду, модели или производителю")
         self.tv_manufacturer_combo = QtWidgets.QComboBox()
@@ -140,21 +115,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_tv_button,
         ]:
             button_row.addWidget(button)
-        button_row.addStretch(1)
         layout.addLayout(button_row)
 
         self.television_table = self._create_table_widget()
         layout.addWidget(self.television_table, stretch=1)
 
-        self.tab_widget.addTab(tab, "Телевизоры")
+        return group
 
-    def _build_clients_tab(self) -> None:
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+    def _build_clients_tab(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Заказы")
+        layout = QtWidgets.QVBoxLayout(group)
+        layout.setSpacing(8)
 
-        panel = SearchPanel("Заказы клиентов")
+        panel = SearchPanel("Фильтр")
         self.client_search_edit = QtWidgets.QLineEdit()
         self.client_search_edit.setPlaceholderText("Поиск по заказам, ФИО, городу или модели")
         self.client_place_combo = QtWidgets.QComboBox()
@@ -180,21 +153,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_client_button,
         ]:
             button_row.addWidget(button)
-        button_row.addStretch(1)
         layout.addLayout(button_row)
 
         self.client_table = self._create_table_widget()
         layout.addWidget(self.client_table, stretch=1)
 
-        self.tab_widget.addTab(tab, "Заказы")
+        return group
 
-    def _build_views_tab(self) -> None:
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+    def _build_views_tab(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Представления и SQL")
+        layout = QtWidgets.QVBoxLayout(group)
+        layout.setSpacing(8)
 
-        panel = SearchPanel("Представления и SQL")
+        panel = SearchPanel("Параметры")
         self.view_combo = QtWidgets.QComboBox()
         self.view_search_edit = QtWidgets.QLineEdit()
         self.view_search_edit.setPlaceholderText("Фильтр по текущему представлению")
@@ -207,24 +178,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.export_view_button = QtWidgets.QPushButton("Экспорт CSV")
         button_row.addWidget(self.refresh_view_button)
         button_row.addWidget(self.export_view_button)
-        button_row.addStretch(1)
         layout.addLayout(button_row)
 
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self.view_table = self._create_table_widget()
-        splitter.addWidget(self.view_table)
+        layout.addWidget(self.view_table, stretch=1)
 
-        sql_box = QtWidgets.QGroupBox("SQL-код объекта")
+        sql_box = QtWidgets.QGroupBox("SQL код")
         sql_layout = QtWidgets.QVBoxLayout(sql_box)
         self.view_sql_text = QtWidgets.QPlainTextEdit()
         self.view_sql_text.setReadOnly(True)
+        self.view_sql_text.setMaximumHeight(180)
         sql_layout.addWidget(self.view_sql_text)
-        splitter.addWidget(sql_box)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        layout.addWidget(splitter, stretch=1)
+        layout.addWidget(sql_box)
 
-        self.tab_widget.addTab(tab, "VIEW и SQL")
+        return group
 
     def _create_table_widget(self) -> QtWidgets.QTableWidget:
         table = QtWidgets.QTableWidget()
@@ -334,17 +301,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refresh_dashboard(self) -> None:
         stats = self.db.dashboard_stats()
-        self.tv_card.set_value(stats["television_count"], f'Лидер: {stats["top_manufacturer"]}')
-        self.orders_card.set_value(stats["order_count"], "Всего клиентских заказов")
-        self.views_card.set_value(stats["view_count"], "Доступно представлений")
-        self.average_price_card.set_value(
-            self._format_money(stats["average_price"]),
-            "Средняя цена по каталогу",
+        summary_text = (
+            f'Телевизоров: {stats["television_count"]}    '
+            f'Заказов: {stats["order_count"]}    '
+            f'VIEW: {stats["view_count"]}\n'
+            f'Средняя цена: {self._format_money(stats["average_price"])}    '
+            f'Сумма заказов: {self._format_money(stats["total_revenue"])}    '
+            f'Лидер: {stats["top_manufacturer"]}'
         )
-        self.revenue_card.set_value(
-            self._format_money(stats["total_revenue"]),
-            "Сумма по клиентским заказам",
-        )
+        self.summary_panel.set_text(summary_text)
 
     def load_televisions(self) -> None:
         if not self.db.connection:

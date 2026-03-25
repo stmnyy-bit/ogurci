@@ -15,7 +15,6 @@ from pyqt_ogurec_app.styles import APP_STYLESHEET
 def create_application(argv: list[str]) -> QtWidgets.QApplication:
     app = QtWidgets.QApplication(argv)
     app.setApplicationName(APP_TITLE)
-    app.setStyle("Fusion")
     app.setQuitOnLastWindowClosed(True)
     app.setStyleSheet(APP_STYLESHEET)
     return app

@@ -9,28 +9,25 @@ class LoginDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.user: User | None = None
 
-        self.setWindowTitle(f"{APP_TITLE} - Авторизация")
-        self.resize(430, 290)
+        self.setWindowTitle(APP_TITLE)
+        self.resize(360, 220)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(22, 22, 22, 22)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
 
-        title_label = QtWidgets.QLabel(APP_TITLE)
-        title_label.setObjectName("titleLabel")
-        title_label.setAlignment(QtCore.Qt.AlignCenter)
+        title_label = QtWidgets.QLabel("Авторизация")
+        title_font = title_label.font()
+        title_font.setBold(True)
+        title_font.setPointSize(11)
+        title_label.setFont(title_font)
         layout.addWidget(title_label)
 
         subtitle_label = QtWidgets.QLabel(APP_SUBTITLE)
-        subtitle_label.setObjectName("subtitleLabel")
-        subtitle_label.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(subtitle_label)
 
-        form_card = QtWidgets.QFrame()
-        form_card.setObjectName("cardFrame")
-        form_layout = QtWidgets.QFormLayout(form_card)
-        form_layout.setContentsMargins(18, 18, 18, 18)
-        form_layout.setSpacing(12)
+        form_layout = QtWidgets.QFormLayout()
+        form_layout.setSpacing(8)
 
         self.username_edit = QtWidgets.QLineEdit()
         self.username_edit.setPlaceholderText("admin / manager / viewer")
@@ -42,19 +39,16 @@ class LoginDialog(QtWidgets.QDialog):
 
         form_layout.addRow("Логин:", self.username_edit)
         form_layout.addRow("Пароль:", self.password_edit)
-        layout.addWidget(form_card)
+        layout.addLayout(form_layout)
 
         info_label = QtWidgets.QLabel(
             "Демо-доступ: admin/admin, manager/manager, viewer/viewer"
         )
         info_label.setWordWrap(True)
-        info_label.setAlignment(QtCore.Qt.AlignCenter)
-        info_label.setStyleSheet("color: #5b7690;")
         layout.addWidget(info_label)
 
         self.error_label = QtWidgets.QLabel("")
-        self.error_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.error_label.setStyleSheet("color: #b42318; font-weight: 600;")
+        self.error_label.setStyleSheet("color: #aa0000;")
         layout.addWidget(self.error_label)
 
         self.button_box = QtWidgets.QDialogButtonBox(
@@ -73,7 +67,7 @@ class LoginDialog(QtWidgets.QDialog):
         password = self.password_edit.text().strip()
         user = authenticate(username, password)
         if not user:
-            self.error_label.setText("Неверный логин или пароль.")
+            self.error_label.setText("Неверный логин или пароль")
             return
         self.user = user
         self.error_label.clear()
