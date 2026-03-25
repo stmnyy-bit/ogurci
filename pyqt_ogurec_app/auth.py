@@ -45,11 +45,13 @@ USERS = {
 
 
 def authenticate(username: str, password: str) -> Optional[User]:
-    record = USERS.get(username.strip())
-    if not record or record["password"] != password.strip():
+    normalized_username = username.strip().lower()
+    normalized_password = password.strip()
+    record = USERS.get(normalized_username)
+    if not record or record["password"] != normalized_password:
         return None
     return User(
-        username=username.strip(),
+        username=normalized_username,
         display_name=record["display_name"],
         role=record["role"],
         can_add=record["can_add"],
