@@ -296,6 +296,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.load_televisions()
             self.load_clients()
             self.load_current_view()
+            db_name = Path(path).name
+            self.setWindowTitle(f"{APP_TITLE} - {self.user.display_name} - {db_name}")
             self.statusBar().showMessage(f"Подключено к базе: {path}")
         except Exception as exc:
             self.statusBar().showMessage(str(exc))
