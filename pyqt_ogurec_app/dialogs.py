@@ -14,13 +14,16 @@ class TelevisionDialog(QtWidgets.QDialog):
         self.tv_code_spin = QtWidgets.QSpinBox()
         self.tv_code_spin.setMaximum(999999)
         self.model_edit = QtWidgets.QLineEdit()
+        self.model_edit.setPlaceholderText("Например, Samsung UE43DU7100")
         self.manufacturer_edit = QtWidgets.QLineEdit()
+        self.manufacturer_edit.setPlaceholderText("Например, Samsung")
         self.diagonal_spin = QtWidgets.QSpinBox()
         self.diagonal_spin.setRange(32, 500)
         self.price_spin = QtWidgets.QDoubleSpinBox()
         self.price_spin.setRange(0, 99999999)
         self.price_spin.setDecimals(2)
         self.price_spin.setSingleStep(1000)
+        self.price_spin.setSuffix(" руб.")
         self.discount_spin = QtWidgets.QSpinBox()
         self.discount_spin.setRange(0, 100)
 
@@ -87,6 +90,7 @@ class ClientDialog(QtWidgets.QDialog):
             self.tv_combo.addItem(label, tv_code)
 
         self.full_name_edit = QtWidgets.QLineEdit()
+        self.full_name_edit.setPlaceholderText("Фамилия Имя Отчество")
 
         self.order_date_edit = QtWidgets.QDateEdit()
         self.order_date_edit.setCalendarPopup(True)
@@ -96,6 +100,7 @@ class ClientDialog(QtWidgets.QDialog):
         self.quantity_spin = QtWidgets.QSpinBox()
         self.quantity_spin.setRange(1, 9999)
         self.place_edit = QtWidgets.QLineEdit()
+        self.place_edit.setPlaceholderText("Город доставки")
         self.discount_spin = QtWidgets.QSpinBox()
         self.discount_spin.setRange(0, 100)
 
