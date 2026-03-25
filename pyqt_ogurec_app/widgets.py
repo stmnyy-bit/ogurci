@@ -25,6 +25,7 @@ class StatCard(QtWidgets.QFrame):
         self.note_label = QtWidgets.QLabel("")
         self.note_label.setWordWrap(True)
         self.note_label.setStyleSheet("color: #62809b;")
+        self.note_label.hide()
         layout.addWidget(self.note_label)
 
         layout.addStretch(1)
@@ -32,6 +33,7 @@ class StatCard(QtWidgets.QFrame):
     def set_value(self, value: str, note: str = "") -> None:
         self.value_label.setText(str(value))
         self.note_label.setText(note)
+        self.note_label.setVisible(bool(str(note).strip()))
 
 
 class SearchPanel(QtWidgets.QFrame):
