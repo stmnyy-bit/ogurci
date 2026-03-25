@@ -14,9 +14,10 @@ class DatabaseManager:
         db_file = Path(self.db_path)
         if not db_file.exists():
             raise FileNotFoundError(f"Файл базы данных не найден: {db_file}")
-        self.connection = sqlite3.connect(str(db_file))
+        self.connection = sqlite3.connect(str(db_file), timeout=5)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
+        self.connection.execute("PRAGMA busy_timeout = 5000")
 
     def close(self) -> None:
         if self.connection:
