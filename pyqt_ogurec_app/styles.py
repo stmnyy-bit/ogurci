@@ -88,6 +88,11 @@ QTableWidget {
     gridline-color: #e2e9f0;
 }
 
+QTableWidget::item:selected {
+    background: #d9ecff;
+    color: #123a63;
+}
+
 QHeaderView::section {
     background: #eaf1f7;
     color: #183550;
@@ -109,6 +114,12 @@ QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0 4px;
+}
+
+QStatusBar {
+    background: #ffffff;
+    color: #456178;
+    border-top: 1px solid #d7e0ea;
 }
 """
 
