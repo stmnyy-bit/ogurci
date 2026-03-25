@@ -12,10 +12,17 @@ from pyqt_ogurec_app.main_window import MainWindow
 from pyqt_ogurec_app.styles import APP_STYLESHEET
 
 
-def main() -> int:
-    app = QtWidgets.QApplication(sys.argv)
+def create_application(argv: list[str]) -> QtWidgets.QApplication:
+    app = QtWidgets.QApplication(argv)
     app.setApplicationName(APP_TITLE)
+    app.setStyle("Fusion")
+    app.setQuitOnLastWindowClosed(True)
     app.setStyleSheet(APP_STYLESHEET)
+    return app
+
+
+def main() -> int:
+    app = create_application(sys.argv)
 
     login_dialog = LoginDialog()
     if login_dialog.exec_() != QtWidgets.QDialog.Accepted or not login_dialog.user:
