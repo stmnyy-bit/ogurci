@@ -15,13 +15,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.user = user
         self.db = DatabaseManager(db_path)
         self.television_rows = []
-        self.client_rows = []
+        self.customer_rows = []
+        self.order_rows = []
         self.all_view_rows = []
         self.current_view_rows = []
         self.current_view_columns = []
 
         self.setWindowTitle(f"{APP_TITLE} - {user.display_name}")
-        self.resize(1080, 760)
+        self.resize(1200, 820)
 
         self._build_ui()
         self._connect_signals()
@@ -39,12 +40,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         root_layout.addWidget(self._build_database_group(), 0, 0, 1, 2)
         root_layout.addWidget(self._build_televisions_group(), 1, 0)
-        root_layout.addWidget(self._build_clients_group(), 1, 1)
-        root_layout.addWidget(self._build_views_group(), 2, 0, 1, 2)
+        root_layout.addWidget(self._build_customers_group(), 1, 1)
+        root_layout.addWidget(self._build_orders_group(), 2, 0)
+        root_layout.addWidget(self._build_views_group(), 2, 1)
+
         root_layout.setColumnStretch(0, 1)
         root_layout.setColumnStretch(1, 1)
         root_layout.setRowStretch(1, 3)
-        root_layout.setRowStretch(2, 2)
+        root_layout.setRowStretch(2, 3)
 
         self.stats_label = QtWidgets.QLabel("")
         self.statusBar().addPermanentWidget(self.stats_label)
@@ -63,12 +66,11 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.browse_db_button, 0, 2)
         layout.addWidget(self.reconnect_button, 0, 3)
 
-        info_label = QtWidgets.QLabel("Структура базы: televisions, customers, orders")
-        layout.addWidget(info_label, 1, 0, 1, 4)
+        layout.addWidget(QtWidgets.QLabel("Структура базы: televisions, customers, orders"), 1, 0, 1, 4)
         return group
 
     def _build_televisions_group(self) -> QtWidgets.QGroupBox:
-        group = QtWidgets.QGroupBox("Телевизоры")
+        group = QtWidgets.QGroupBox("Таблица televisions")
         layout = QtWidgets.QVBoxLayout(group)
 
         filter_layout = QtWidgets.QGridLayout()
@@ -111,44 +113,73 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.television_table, stretch=1)
         return group
 
-    def _build_clients_group(self) -> QtWidgets.QGroupBox:
-        group = QtWidgets.QGroupBox("Заказы")
+    def _build_customers_group(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Таблица customers")
         layout = QtWidgets.QVBoxLayout(group)
 
         filter_layout = QtWidgets.QGridLayout()
-        self.client_search_edit = QtWidgets.QLineEdit()
-        self.client_search_edit.setPlaceholderText("Номер, ФИО, город или модель")
-        self.client_place_combo = QtWidgets.QComboBox()
-        self.client_sort_combo = QtWidgets.QComboBox()
-        self.client_sort_combo.addItem("Новые сверху", "date_desc")
-        self.client_sort_combo.addItem("Старые сверху", "date_asc")
-        self.client_sort_combo.addItem("ФИО А-Я", "name_asc")
-        self.client_sort_combo.addItem("Количество по убыванию", "quantity_desc")
+        self.customer_search_edit = QtWidgets.QLineEdit()
+        self.customer_search_edit.setPlaceholderText("ID, ФИО или город")
+        self.customer_place_combo = QtWidgets.QComboBox()
+        self.customer_sort_combo = QtWidgets.QComboBox()
+        self.customer_sort_combo.addItem("ФИО А-Я", "name_asc")
+        self.customer_sort_combo.addItem("Город А-Я", "place_asc")
+        self.customer_sort_combo.addItem("ID по возрастанию", "id_asc")
+        self.customer_sort_combo.addItem("ID по убыванию", "id_desc")
 
         filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 0, 0)
-        filter_layout.addWidget(self.client_search_edit, 0, 1)
+        filter_layout.addWidget(self.customer_search_edit, 0, 1)
         filter_layout.addWidget(QtWidgets.QLabel("Город:"), 1, 0)
-        filter_layout.addWidget(self.client_place_combo, 1, 1)
+        filter_layout.addWidget(self.customer_place_combo, 1, 1)
         filter_layout.addWidget(QtWidgets.QLabel("Сортировка:"), 2, 0)
-        filter_layout.addWidget(self.client_sort_combo, 2, 1)
+        filter_layout.addWidget(self.customer_sort_combo, 2, 1)
         layout.addLayout(filter_layout)
 
         button_row = QtWidgets.QHBoxLayout()
-        self.add_client_button = QtWidgets.QPushButton("Добавить")
-        self.edit_client_button = QtWidgets.QPushButton("Изменить")
-        self.delete_client_button = QtWidgets.QPushButton("Удалить")
-        self.refresh_client_button = QtWidgets.QPushButton("Обновить")
+        self.refresh_customer_button = QtWidgets.QPushButton("Обновить")
+        button_row.addWidget(self.refresh_customer_button)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.customer_table = self._create_table_widget()
+        layout.addWidget(self.customer_table, stretch=1)
+        return group
+
+    def _build_orders_group(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Таблица orders")
+        layout = QtWidgets.QVBoxLayout(group)
+
+        filter_layout = QtWidgets.QGridLayout()
+        self.order_search_edit = QtWidgets.QLineEdit()
+        self.order_search_edit.setPlaceholderText("Номер заказа, customer_id, tv_code или дата")
+        self.order_sort_combo = QtWidgets.QComboBox()
+        self.order_sort_combo.addItem("Новые сверху", "date_desc")
+        self.order_sort_combo.addItem("Старые сверху", "date_asc")
+        self.order_sort_combo.addItem("Номер по возрастанию", "order_asc")
+        self.order_sort_combo.addItem("Количество по убыванию", "quantity_desc")
+
+        filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 0, 0)
+        filter_layout.addWidget(self.order_search_edit, 0, 1)
+        filter_layout.addWidget(QtWidgets.QLabel("Сортировка:"), 1, 0)
+        filter_layout.addWidget(self.order_sort_combo, 1, 1)
+        layout.addLayout(filter_layout)
+
+        button_row = QtWidgets.QHBoxLayout()
+        self.add_order_button = QtWidgets.QPushButton("Добавить")
+        self.edit_order_button = QtWidgets.QPushButton("Изменить")
+        self.delete_order_button = QtWidgets.QPushButton("Удалить")
+        self.refresh_order_button = QtWidgets.QPushButton("Обновить")
         for button in (
-            self.add_client_button,
-            self.edit_client_button,
-            self.delete_client_button,
-            self.refresh_client_button,
+            self.add_order_button,
+            self.edit_order_button,
+            self.delete_order_button,
+            self.refresh_order_button,
         ):
             button_row.addWidget(button)
         layout.addLayout(button_row)
 
-        self.client_table = self._create_table_widget()
-        layout.addWidget(self.client_table, stretch=1)
+        self.order_table = self._create_table_widget()
+        layout.addWidget(self.order_table, stretch=1)
         return group
 
     def _build_views_group(self) -> QtWidgets.QGroupBox:
@@ -180,7 +211,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view_sql_text.setReadOnly(True)
         self.view_sql_text.setMaximumHeight(160)
         layout.addWidget(self.view_sql_text)
-
         return group
 
     def _create_table_widget(self) -> QtWidgets.QTableWidget:
@@ -200,14 +230,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.delete_tv_button.clicked.connect(self.delete_television)
         self.television_table.itemDoubleClicked.connect(lambda *_: self.edit_television())
 
-        self.client_search_edit.textChanged.connect(self.load_clients)
-        self.client_place_combo.currentTextChanged.connect(self.load_clients)
-        self.client_sort_combo.currentIndexChanged.connect(self.load_clients)
-        self.refresh_client_button.clicked.connect(self.load_clients)
-        self.add_client_button.clicked.connect(self.add_client)
-        self.edit_client_button.clicked.connect(self.edit_client)
-        self.delete_client_button.clicked.connect(self.delete_client)
-        self.client_table.itemDoubleClicked.connect(lambda *_: self.edit_client())
+        self.customer_search_edit.textChanged.connect(self.load_customers)
+        self.customer_place_combo.currentTextChanged.connect(self.load_customers)
+        self.customer_sort_combo.currentIndexChanged.connect(self.load_customers)
+        self.refresh_customer_button.clicked.connect(self.load_customers)
+
+        self.order_search_edit.textChanged.connect(self.load_orders)
+        self.order_sort_combo.currentIndexChanged.connect(self.load_orders)
+        self.refresh_order_button.clicked.connect(self.load_orders)
+        self.add_order_button.clicked.connect(self.add_order)
+        self.edit_order_button.clicked.connect(self.edit_order)
+        self.delete_order_button.clicked.connect(self.delete_order)
+        self.order_table.itemDoubleClicked.connect(lambda *_: self.edit_order())
 
         self.view_combo.currentTextChanged.connect(self.load_current_view)
         self.view_search_edit.textChanged.connect(self.filter_view_rows)
@@ -218,9 +252,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.add_tv_button.setEnabled(self.user.can_add)
         self.edit_tv_button.setEnabled(self.user.can_edit)
         self.delete_tv_button.setEnabled(self.user.can_delete)
-        self.add_client_button.setEnabled(self.user.can_add)
-        self.edit_client_button.setEnabled(self.user.can_edit)
-        self.delete_client_button.setEnabled(self.user.can_delete)
+        self.add_order_button.setEnabled(self.user.can_add)
+        self.edit_order_button.setEnabled(self.user.can_edit)
+        self.delete_order_button.setEnabled(self.user.can_delete)
 
     def choose_database_file(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -244,7 +278,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_reference_data()
             self.refresh_dashboard()
             self.load_televisions()
-            self.load_clients()
+            self.load_customers()
+            self.load_orders()
             self.load_current_view()
             db_name = Path(path).name
             self.setWindowTitle(f"{APP_TITLE} - {self.user.display_name} - {db_name}")
@@ -265,13 +300,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tv_manufacturer_combo.blockSignals(False)
 
         places = [ALL_PLACES] + self.db.list_places()
-        current_place = self.client_place_combo.currentText()
-        self.client_place_combo.blockSignals(True)
-        self.client_place_combo.clear()
-        self.client_place_combo.addItems(places)
-        index = self.client_place_combo.findText(current_place)
-        self.client_place_combo.setCurrentIndex(max(index, 0))
-        self.client_place_combo.blockSignals(False)
+        current_place = self.customer_place_combo.currentText()
+        self.customer_place_combo.blockSignals(True)
+        self.customer_place_combo.clear()
+        self.customer_place_combo.addItems(places)
+        index = self.customer_place_combo.findText(current_place)
+        self.customer_place_combo.setCurrentIndex(max(index, 0))
+        self.customer_place_combo.blockSignals(False)
 
         current_view = self.view_combo.currentText()
         view_names = self.db.list_views()
@@ -286,6 +321,7 @@ class MainWindow(QtWidgets.QMainWindow):
         stats = self.db.dashboard_stats()
         self.stats_label.setText(
             f'Телевизоры: {stats["television_count"]} | '
+            f'Клиенты: {stats["customer_count"]} | '
             f'Заказы: {stats["order_count"]} | '
             f'Представления: {stats["view_count"]}'
         )
@@ -305,27 +341,31 @@ class MainWindow(QtWidgets.QMainWindow):
             ["tv_code", "model_name", "manufacturer", "diagonal_cm", "price", "discount_percent"],
         )
 
-    def load_clients(self) -> None:
+    def load_customers(self) -> None:
         if not self.db.connection:
             return
-        self.client_rows = self.db.get_clients(
-            search=self.client_search_edit.text().strip(),
-            place=self.client_place_combo.currentText(),
-            sort_mode=self.client_sort_combo.currentData(),
+        self.customer_rows = self.db.get_customers(
+            search=self.customer_search_edit.text().strip(),
+            place=self.customer_place_combo.currentText(),
+            sort_mode=self.customer_sort_combo.currentData(),
         )
         self.fill_table(
-            self.client_table,
-            self.client_rows,
-            [
-                "order_number",
-                "tv_code",
-                "model_name",
-                "full_name",
-                "order_date",
-                "quantity",
-                "place",
-                "discount_percent",
-            ],
+            self.customer_table,
+            self.customer_rows,
+            ["customer_id", "full_name", "place"],
+        )
+
+    def load_orders(self) -> None:
+        if not self.db.connection:
+            return
+        self.order_rows = self.db.get_orders(
+            search=self.order_search_edit.text().strip(),
+            sort_mode=self.order_sort_combo.currentData(),
+        )
+        self.fill_table(
+            self.order_table,
+            self.order_rows,
+            ["order_number", "customer_id", "tv_code", "order_date", "quantity", "discount_percent"],
         )
 
     def load_current_view(self) -> None:
@@ -431,37 +471,43 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
-    def add_client(self) -> None:
+    def add_order(self) -> None:
         dialog = ClientDialog(self.db.television_choices(), self)
         if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
         try:
-            self.db.add_client(dialog.get_data())
+            self.db.add_order(dialog.get_data())
             self.refresh_after_write("Заказ добавлен.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
-    def edit_client(self) -> None:
+    def edit_order(self) -> None:
         if not self.user.can_edit:
             return
-        row = self.selected_row(self.client_table, self.client_rows)
+        row = self.selected_row(self.order_table, self.order_rows)
         if not row:
             QtWidgets.QMessageBox.information(self, "Подсказка", "Выберите заказ в таблице.")
             return
-        dialog = ClientDialog(self.db.television_choices(), self, row)
+
+        dialog_data = self.db.get_order_dialog_data(int(row["order_number"]))
+        if not dialog_data:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Не удалось загрузить данные заказа.")
+            return
+
+        dialog = ClientDialog(self.db.television_choices(), self, dialog_data)
         dialog.order_number_spin.setEnabled(False)
         if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
         try:
-            self.db.update_client(int(row["order_number"]), dialog.get_data())
+            self.db.update_order(int(row["order_number"]), dialog.get_data())
             self.refresh_after_write("Заказ обновлен.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
-    def delete_client(self) -> None:
+    def delete_order(self) -> None:
         if not self.user.can_delete:
             return
-        row = self.selected_row(self.client_table, self.client_rows)
+        row = self.selected_row(self.order_table, self.order_rows)
         if not row:
             QtWidgets.QMessageBox.information(self, "Подсказка", "Выберите заказ в таблице.")
             return
@@ -473,7 +519,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if answer != QtWidgets.QMessageBox.Yes:
             return
         try:
-            self.db.delete_client(int(row["order_number"]))
+            self.db.delete_order(int(row["order_number"]))
             self.refresh_after_write("Заказ удален.")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
@@ -482,7 +528,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_reference_data()
         self.refresh_dashboard()
         self.load_televisions()
-        self.load_clients()
+        self.load_customers()
+        self.load_orders()
         self.load_current_view()
         self.statusBar().showMessage(message, 5000)
 

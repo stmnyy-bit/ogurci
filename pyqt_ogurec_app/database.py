@@ -134,25 +134,18 @@ class DatabaseManager:
         sql += sort_sql.get(sort_mode, sort_sql["price_desc"])
         return [dict(row) for row in self.query(sql, params)]
 
-    def get_clients(
+    def get_customers(
         self,
         search: str = "",
         place: str = "",
-        sort_mode: str = "date_desc",
+        sort_mode: str = "name_asc",
     ) -> list[dict]:
         sql = """
             SELECT
-                o.order_number,
-                o.tv_code,
-                c.full_name,
-                o.order_date,
-                o.quantity,
-                c.place,
-                o.discount_percent,
-                t.model_name
-            FROM orders o
-            JOIN customers c ON c.customer_id = o.customer_id
-            LEFT JOIN televisions t ON t.tv_code = o.tv_code
+                customer_id,
+                full_name,
+                place
+            FROM customers
             WHERE 1 = 1
         """
         params: list = []
@@ -160,22 +153,59 @@ class DatabaseManager:
             pattern = f"%{search.strip()}%"
             sql += """
                 AND (
-                    CAST(o.order_number AS TEXT) LIKE ?
-                    OR c.full_name LIKE ?
-                    OR c.place LIKE ?
-                    OR IFNULL(t.model_name, '') LIKE ?
+                    CAST(customer_id AS TEXT) LIKE ?
+                    OR full_name LIKE ?
+                    OR place LIKE ?
                 )
             """
-            params.extend([pattern, pattern, pattern, pattern])
+            params.extend([pattern, pattern, pattern])
         if place and place != ALL_PLACES:
-            sql += " AND c.place = ?"
+            sql += " AND place = ?"
             params.append(place)
 
         sort_sql = {
-            "date_desc": " ORDER BY o.order_date DESC, o.order_number DESC",
-            "date_asc": " ORDER BY o.order_date ASC, o.order_number ASC",
-            "name_asc": " ORDER BY c.full_name ASC",
-            "quantity_desc": " ORDER BY o.quantity DESC, o.order_number DESC",
+            "name_asc": " ORDER BY full_name ASC, customer_id ASC",
+            "place_asc": " ORDER BY place ASC, full_name ASC",
+            "id_asc": " ORDER BY customer_id ASC",
+            "id_desc": " ORDER BY customer_id DESC",
+        }
+        sql += sort_sql.get(sort_mode, sort_sql["name_asc"])
+        return [dict(row) for row in self.query(sql, params)]
+
+    def get_orders(
+        self,
+        search: str = "",
+        sort_mode: str = "date_desc",
+    ) -> list[dict]:
+        sql = """
+            SELECT
+                order_number,
+                customer_id,
+                tv_code,
+                order_date,
+                quantity,
+                discount_percent
+            FROM orders
+            WHERE 1 = 1
+        """
+        params: list = []
+        if search:
+            pattern = f"%{search.strip()}%"
+            sql += """
+                AND (
+                    CAST(order_number AS TEXT) LIKE ?
+                    OR CAST(customer_id AS TEXT) LIKE ?
+                    OR CAST(tv_code AS TEXT) LIKE ?
+                    OR order_date LIKE ?
+                )
+            """
+            params.extend([pattern, pattern, pattern, pattern])
+
+        sort_sql = {
+            "date_desc": " ORDER BY order_date DESC, order_number DESC",
+            "date_asc": " ORDER BY order_date ASC, order_number ASC",
+            "order_asc": " ORDER BY order_number ASC",
+            "quantity_desc": " ORDER BY quantity DESC, order_number DESC",
         }
         sql += sort_sql.get(sort_mode, sort_sql["date_desc"])
         return [dict(row) for row in self.query(sql, params)]
@@ -223,7 +253,7 @@ class DatabaseManager:
         rows = self.query("SELECT * FROM televisions WHERE tv_code = ?", [tv_code])
         return dict(rows[0]) if rows else None
 
-    def get_client(self, order_number: int) -> Optional[dict]:
+    def get_order_dialog_data(self, order_number: int) -> Optional[dict]:
         rows = self.query(
             """
             SELECT
@@ -280,7 +310,7 @@ class DatabaseManager:
     def delete_television(self, tv_code: int) -> None:
         self.execute("DELETE FROM televisions WHERE tv_code = ?", [tv_code])
 
-    def add_client(self, data: dict) -> None:
+    def add_order(self, data: dict) -> None:
         connection = self._require_connection()
         cursor = connection.cursor()
         try:
@@ -310,7 +340,7 @@ class DatabaseManager:
             connection.rollback()
             raise
 
-    def update_client(self, order_number: int, data: dict) -> None:
+    def update_order(self, order_number: int, data: dict) -> None:
         connection = self._require_connection()
         cursor = connection.cursor()
         try:
@@ -348,7 +378,7 @@ class DatabaseManager:
             connection.rollback()
             raise
 
-    def delete_client(self, order_number: int) -> None:
+    def delete_order(self, order_number: int) -> None:
         connection = self._require_connection()
         cursor = connection.cursor()
         try:
@@ -369,6 +399,7 @@ class DatabaseManager:
 
     def dashboard_stats(self) -> dict:
         television_count = self.scalar("SELECT COUNT(*) FROM televisions") or 0
+        customer_count = self.scalar("SELECT COUNT(*) FROM customers") or 0
         order_count = self.scalar("SELECT COUNT(*) FROM orders") or 0
         view_count = self.scalar(
             """
@@ -379,30 +410,11 @@ class DatabaseManager:
               AND name NOT IN ('clients')
             """
         ) or 0
-        average_price = self.scalar("SELECT ROUND(AVG(price), 2) FROM televisions") or 0
-        total_revenue = self.scalar(
-            """
-            SELECT ROUND(SUM(o.quantity * t.price * (100 - o.discount_percent) / 100.0), 2)
-            FROM orders o
-            JOIN televisions t ON t.tv_code = o.tv_code
-            """
-        ) or 0
-        top_manufacturer = self.scalar(
-            """
-            SELECT manufacturer
-            FROM televisions
-            GROUP BY manufacturer
-            ORDER BY COUNT(*) DESC, manufacturer
-            LIMIT 1
-            """
-        ) or "-"
         return {
             "television_count": television_count,
+            "customer_count": customer_count,
             "order_count": order_count,
             "view_count": view_count,
-            "average_price": average_price,
-            "total_revenue": total_revenue,
-            "top_manufacturer": top_manufacturer,
         }
 
     def _get_or_create_customer(self, cursor: sqlite3.Cursor, full_name: str, place: str) -> int:
