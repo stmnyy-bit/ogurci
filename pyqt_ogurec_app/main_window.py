@@ -38,20 +38,37 @@ class MainWindow(QtWidgets.QMainWindow):
         root_layout.setHorizontalSpacing(10)
         root_layout.setVerticalSpacing(10)
 
-        root_layout.addWidget(self._build_database_group(), 0, 0, 1, 2)
-        root_layout.addWidget(self._build_televisions_group(), 1, 0)
-        root_layout.addWidget(self._build_customers_group(), 1, 1)
-        root_layout.addWidget(self._build_orders_group(), 2, 0)
-        root_layout.addWidget(self._build_views_group(), 2, 1)
+        root_layout.addWidget(self._build_database_group(), 0, 0)
+        root_layout.addWidget(self._build_tables_group(), 1, 0)
+        root_layout.addWidget(self._build_views_group(), 2, 0)
 
-        root_layout.setColumnStretch(0, 1)
-        root_layout.setColumnStretch(1, 1)
         root_layout.setRowStretch(1, 3)
         root_layout.setRowStretch(2, 3)
 
         self.stats_label = QtWidgets.QLabel("")
         self.statusBar().addPermanentWidget(self.stats_label)
         self.statusBar().showMessage("Готово к работе")
+
+    def _build_tables_group(self) -> QtWidgets.QGroupBox:
+        group = QtWidgets.QGroupBox("Таблицы базы")
+        layout = QtWidgets.QVBoxLayout(group)
+
+        selector_row = QtWidgets.QHBoxLayout()
+        selector_row.addWidget(QtWidgets.QLabel("Показать таблицу:"))
+        self.table_selector = QtWidgets.QComboBox()
+        self.table_selector.addItem("televisions", "televisions")
+        self.table_selector.addItem("customers", "customers")
+        self.table_selector.addItem("orders", "orders")
+        selector_row.addWidget(self.table_selector)
+        selector_row.addStretch(1)
+        layout.addLayout(selector_row)
+
+        self.table_stack = QtWidgets.QStackedWidget()
+        self.table_stack.addWidget(self._build_televisions_group())
+        self.table_stack.addWidget(self._build_customers_group())
+        self.table_stack.addWidget(self._build_orders_group())
+        layout.addWidget(self.table_stack, stretch=1)
+        return group
 
     def _build_database_group(self) -> QtWidgets.QGroupBox:
         group = QtWidgets.QGroupBox("Подключение к базе")
@@ -219,6 +236,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _connect_signals(self) -> None:
         self.browse_db_button.clicked.connect(self.choose_database_file)
         self.reconnect_button.clicked.connect(self.connect_database)
+        self.table_selector.currentIndexChanged.connect(self.change_table_page)
 
         self.tv_search_edit.textChanged.connect(self.load_televisions)
         self.tv_manufacturer_combo.currentTextChanged.connect(self.load_televisions)
@@ -247,6 +265,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view_search_edit.textChanged.connect(self.filter_view_rows)
         self.refresh_view_button.clicked.connect(self.load_current_view)
         self.export_view_button.clicked.connect(self.export_view_to_csv)
+
+    def change_table_page(self, index: int) -> None:
+        self.table_stack.setCurrentIndex(max(index, 0))
 
     def _apply_permissions(self) -> None:
         self.add_tv_button.setEnabled(self.user.can_add)
