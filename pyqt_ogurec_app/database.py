@@ -3,6 +3,11 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 
+ALL_MANUFACTURERS = "Все производители"
+ALL_PLACES = "Все города"
+HIDDEN_VIEWS = {"clients"}
+
+
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -44,8 +49,6 @@ class DatabaseManager:
         row = cursor.fetchone()
         if row is None:
             return None
-        if isinstance(row, sqlite3.Row):
-            return row[0]
         return row[0]
 
     def object_names(self) -> list[tuple[str, str]]:
@@ -64,7 +67,7 @@ class DatabaseManager:
         return [
             name
             for name, kind in self.object_names()
-            if kind == "view" and name != "clients"
+            if kind == "view" and name not in HIDDEN_VIEWS
         ]
 
     def list_manufacturers(self) -> list[str]:
@@ -81,7 +84,7 @@ class DatabaseManager:
         rows = self.query(
             """
             SELECT DISTINCT place
-            FROM clients
+            FROM customers
             ORDER BY place
             """
         )
@@ -116,7 +119,7 @@ class DatabaseManager:
             """
             pattern = f"%{search.strip()}%"
             params.extend([pattern, pattern, pattern])
-        if manufacturer and manufacturer != "Все производители":
+        if manufacturer and manufacturer != ALL_MANUFACTURERS:
             sql += " AND manufacturer = ?"
             params.append(manufacturer)
         sql += " AND discount_percent >= ?"
@@ -139,16 +142,17 @@ class DatabaseManager:
     ) -> list[dict]:
         sql = """
             SELECT
-                c.order_number,
-                c.tv_code,
+                o.order_number,
+                o.tv_code,
                 c.full_name,
-                c.order_date,
-                c.quantity,
+                o.order_date,
+                o.quantity,
                 c.place,
-                c.discount_percent,
+                o.discount_percent,
                 t.model_name
-            FROM clients c
-            LEFT JOIN televisions t ON t.tv_code = c.tv_code
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN televisions t ON t.tv_code = o.tv_code
             WHERE 1 = 1
         """
         params: list = []
@@ -156,22 +160,22 @@ class DatabaseManager:
             pattern = f"%{search.strip()}%"
             sql += """
                 AND (
-                    CAST(c.order_number AS TEXT) LIKE ?
+                    CAST(o.order_number AS TEXT) LIKE ?
                     OR c.full_name LIKE ?
                     OR c.place LIKE ?
                     OR IFNULL(t.model_name, '') LIKE ?
                 )
             """
             params.extend([pattern, pattern, pattern, pattern])
-        if place and place != "Все города":
+        if place and place != ALL_PLACES:
             sql += " AND c.place = ?"
             params.append(place)
 
         sort_sql = {
-            "date_desc": " ORDER BY c.order_date DESC, c.order_number DESC",
-            "date_asc": " ORDER BY c.order_date ASC, c.order_number ASC",
+            "date_desc": " ORDER BY o.order_date DESC, o.order_number DESC",
+            "date_asc": " ORDER BY o.order_date ASC, o.order_number ASC",
             "name_asc": " ORDER BY c.full_name ASC",
-            "quantity_desc": " ORDER BY c.quantity DESC, c.order_number DESC",
+            "quantity_desc": " ORDER BY o.quantity DESC, o.order_number DESC",
         }
         sql += sort_sql.get(sort_mode, sort_sql["date_desc"])
         return [dict(row) for row in self.query(sql, params)]
@@ -181,8 +185,7 @@ class DatabaseManager:
             raise ValueError(f"Представление {view_name} не найдено в базе.")
         rows = self.query(f'SELECT * FROM "{view_name}"')
         if not rows:
-            columns = self.get_columns(view_name)
-            return columns, []
+            return self.get_columns(view_name), []
         return list(rows[0].keys()), [dict(row) for row in rows]
 
     def get_columns(self, object_name: str) -> list[str]:
@@ -221,7 +224,22 @@ class DatabaseManager:
         return dict(rows[0]) if rows else None
 
     def get_client(self, order_number: int) -> Optional[dict]:
-        rows = self.query("SELECT * FROM clients WHERE order_number = ?", [order_number])
+        rows = self.query(
+            """
+            SELECT
+                o.order_number,
+                o.tv_code,
+                c.full_name,
+                o.order_date,
+                o.quantity,
+                c.place,
+                o.discount_percent
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE o.order_number = ?
+            """,
+            [order_number],
+        )
         return dict(rows[0]) if rows else None
 
     def add_television(self, data: dict) -> None:
@@ -263,63 +281,110 @@ class DatabaseManager:
         self.execute("DELETE FROM televisions WHERE tv_code = ?", [tv_code])
 
     def add_client(self, data: dict) -> None:
-        self.execute(
-            """
-            INSERT INTO clients (
-                order_number, tv_code, full_name, order_date, quantity, place, discount_percent
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                data["order_number"],
-                data["tv_code"],
+        connection = self._require_connection()
+        cursor = connection.cursor()
+        try:
+            customer_id = self._get_or_create_customer(
+                cursor,
                 data["full_name"],
-                data["order_date"],
-                data["quantity"],
                 data["place"],
-                data["discount_percent"],
-            ],
-        )
+            )
+            cursor.execute(
+                """
+                INSERT INTO orders (
+                    order_number, customer_id, tv_code, order_date, quantity, discount_percent
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    data["order_number"],
+                    customer_id,
+                    data["tv_code"],
+                    data["order_date"],
+                    data["quantity"],
+                    data["discount_percent"],
+                ],
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     def update_client(self, order_number: int, data: dict) -> None:
-        self.execute(
-            """
-            UPDATE clients
-            SET tv_code = ?, full_name = ?, order_date = ?, quantity = ?, place = ?, discount_percent = ?
-            WHERE order_number = ?
-            """,
-            [
-                data["tv_code"],
+        connection = self._require_connection()
+        cursor = connection.cursor()
+        try:
+            row = cursor.execute(
+                "SELECT customer_id FROM orders WHERE order_number = ?",
+                [order_number],
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Заказ №{order_number} не найден.")
+
+            previous_customer_id = row[0]
+            customer_id = self._get_or_create_customer(
+                cursor,
                 data["full_name"],
-                data["order_date"],
-                data["quantity"],
                 data["place"],
-                data["discount_percent"],
-                order_number,
-            ],
-        )
+            )
+            cursor.execute(
+                """
+                UPDATE orders
+                SET customer_id = ?, tv_code = ?, order_date = ?, quantity = ?, discount_percent = ?
+                WHERE order_number = ?
+                """,
+                [
+                    customer_id,
+                    data["tv_code"],
+                    data["order_date"],
+                    data["quantity"],
+                    data["discount_percent"],
+                    order_number,
+                ],
+            )
+            self._delete_orphan_customer(cursor, previous_customer_id)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     def delete_client(self, order_number: int) -> None:
-        self.execute("DELETE FROM clients WHERE order_number = ?", [order_number])
+        connection = self._require_connection()
+        cursor = connection.cursor()
+        try:
+            row = cursor.execute(
+                "SELECT customer_id FROM orders WHERE order_number = ?",
+                [order_number],
+            ).fetchone()
+            if row is None:
+                return
+
+            customer_id = row[0]
+            cursor.execute("DELETE FROM orders WHERE order_number = ?", [order_number])
+            self._delete_orphan_customer(cursor, customer_id)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     def dashboard_stats(self) -> dict:
         television_count = self.scalar("SELECT COUNT(*) FROM televisions") or 0
-        order_count = self.scalar("SELECT COUNT(*) FROM clients") or 0
+        order_count = self.scalar("SELECT COUNT(*) FROM orders") or 0
         view_count = self.scalar(
             """
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'view'
               AND name NOT LIKE 'sqlite_%'
-              AND name <> 'clients'
+              AND name NOT IN ('clients')
             """
         ) or 0
         average_price = self.scalar("SELECT ROUND(AVG(price), 2) FROM televisions") or 0
         total_revenue = self.scalar(
             """
-            SELECT ROUND(SUM(c.quantity * t.price * (100 - c.discount_percent) / 100.0), 2)
-            FROM clients c
-            JOIN televisions t ON t.tv_code = c.tv_code
+            SELECT ROUND(SUM(o.quantity * t.price * (100 - o.discount_percent) / 100.0), 2)
+            FROM orders o
+            JOIN televisions t ON t.tv_code = o.tv_code
             """
         ) or 0
         top_manufacturer = self.scalar(
@@ -340,7 +405,36 @@ class DatabaseManager:
             "top_manufacturer": top_manufacturer,
         }
 
+    def _get_or_create_customer(self, cursor: sqlite3.Cursor, full_name: str, place: str) -> int:
+        row = cursor.execute(
+            """
+            SELECT customer_id
+            FROM customers
+            WHERE full_name = ? AND place = ?
+            """,
+            [full_name, place],
+        ).fetchone()
+        if row is not None:
+            return row[0]
+
+        cursor.execute(
+            """
+            INSERT INTO customers (full_name, place)
+            VALUES (?, ?)
+            """,
+            [full_name, place],
+        )
+        return cursor.lastrowid
+
+    def _delete_orphan_customer(self, cursor: sqlite3.Cursor, customer_id: int) -> None:
+        remaining_orders = cursor.execute(
+            "SELECT COUNT(*) FROM orders WHERE customer_id = ?",
+            [customer_id],
+        ).fetchone()[0]
+        if remaining_orders == 0:
+            cursor.execute("DELETE FROM customers WHERE customer_id = ?", [customer_id])
+
     def _require_connection(self) -> sqlite3.Connection:
         if not self.connection:
-            raise RuntimeError("Соединение с базой не установлено.")
+            raise RuntimeError("Соединение с базой данных не установлено.")
         return self.connection

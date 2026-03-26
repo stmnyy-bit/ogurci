@@ -4,7 +4,7 @@ from pathlib import Path
 from PyQt5 import QtCore, QtWidgets
 
 from pyqt_ogurec_app.config import APP_TITLE
-from pyqt_ogurec_app.database import DatabaseManager
+from pyqt_ogurec_app.database import ALL_MANUFACTURERS, ALL_PLACES, DatabaseManager
 from pyqt_ogurec_app.dialogs import ClientDialog, TelevisionDialog
 from pyqt_ogurec_app.widgets import DataTable
 
@@ -63,6 +63,8 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.browse_db_button, 0, 2)
         layout.addWidget(self.reconnect_button, 0, 3)
 
+        info_label = QtWidgets.QLabel("Структура базы: televisions, customers, orders")
+        layout.addWidget(info_label, 1, 0, 1, 4)
         return group
 
     def _build_televisions_group(self) -> QtWidgets.QGroupBox:
@@ -157,7 +159,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view_combo = QtWidgets.QComboBox()
         self.view_search_edit = QtWidgets.QLineEdit()
         self.view_search_edit.setPlaceholderText("Поиск по строкам представления")
-        filter_layout.addWidget(QtWidgets.QLabel("VIEW:"), 0, 0)
+        filter_layout.addWidget(QtWidgets.QLabel("Представление:"), 0, 0)
         filter_layout.addWidget(self.view_combo, 0, 1)
         filter_layout.addWidget(QtWidgets.QLabel("Поиск:"), 1, 0)
         filter_layout.addWidget(self.view_search_edit, 1, 1)
@@ -173,7 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view_table = self._create_table_widget()
         layout.addWidget(self.view_table, stretch=1)
 
-        layout.addWidget(QtWidgets.QLabel("SQL код:"))
+        layout.addWidget(QtWidgets.QLabel("SQL-код представления:"))
         self.view_sql_text = QtWidgets.QPlainTextEdit()
         self.view_sql_text.setReadOnly(True)
         self.view_sql_text.setMaximumHeight(160)
@@ -253,7 +255,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.critical(self, "Ошибка подключения", str(exc))
 
     def refresh_reference_data(self) -> None:
-        manufacturers = ["Все производители"] + self.db.list_manufacturers()
+        manufacturers = [ALL_MANUFACTURERS] + self.db.list_manufacturers()
         current_manufacturer = self.tv_manufacturer_combo.currentText()
         self.tv_manufacturer_combo.blockSignals(True)
         self.tv_manufacturer_combo.clear()
@@ -262,7 +264,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tv_manufacturer_combo.setCurrentIndex(max(index, 0))
         self.tv_manufacturer_combo.blockSignals(False)
 
-        places = ["Все города"] + self.db.list_places()
+        places = [ALL_PLACES] + self.db.list_places()
         current_place = self.client_place_combo.currentText()
         self.client_place_combo.blockSignals(True)
         self.client_place_combo.clear()
@@ -283,9 +285,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def refresh_dashboard(self) -> None:
         stats = self.db.dashboard_stats()
         self.stats_label.setText(
-            f'ТВ: {stats["television_count"]} | '
+            f'Телевизоры: {stats["television_count"]} | '
             f'Заказы: {stats["order_count"]} | '
-            f'VIEW: {stats["view_count"]}'
+            f'Представления: {stats["view_count"]}'
         )
 
     def load_televisions(self) -> None:
@@ -297,15 +299,11 @@ class MainWindow(QtWidgets.QMainWindow):
             min_discount=self.tv_discount_spin.value(),
             sort_mode=self.tv_sort_combo.currentData(),
         )
-        columns = [
-            "tv_code",
-            "model_name",
-            "manufacturer",
-            "diagonal_cm",
-            "price",
-            "discount_percent",
-        ]
-        self.fill_table(self.television_table, self.television_rows, columns)
+        self.fill_table(
+            self.television_table,
+            self.television_rows,
+            ["tv_code", "model_name", "manufacturer", "diagonal_cm", "price", "discount_percent"],
+        )
 
     def load_clients(self) -> None:
         if not self.db.connection:
@@ -315,26 +313,33 @@ class MainWindow(QtWidgets.QMainWindow):
             place=self.client_place_combo.currentText(),
             sort_mode=self.client_sort_combo.currentData(),
         )
-        columns = [
-            "order_number",
-            "tv_code",
-            "model_name",
-            "full_name",
-            "order_date",
-            "quantity",
-            "place",
-            "discount_percent",
-        ]
-        self.fill_table(self.client_table, self.client_rows, columns)
+        self.fill_table(
+            self.client_table,
+            self.client_rows,
+            [
+                "order_number",
+                "tv_code",
+                "model_name",
+                "full_name",
+                "order_date",
+                "quantity",
+                "place",
+                "discount_percent",
+            ],
+        )
 
     def load_current_view(self) -> None:
         if not self.db.connection:
             return
         view_name = self.view_combo.currentText().strip()
         if not view_name:
-            self.view_table.clear()
+            self.current_view_columns = []
+            self.all_view_rows = []
+            self.current_view_rows = []
+            self.fill_table(self.view_table, [], [])
             self.view_sql_text.clear()
             return
+
         columns, rows = self.db.get_view_rows(view_name)
         self.current_view_columns = columns
         self.all_view_rows = rows
@@ -355,15 +360,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fill_table(self, table: QtWidgets.QTableWidget, rows, columns) -> None:
         table.clear()
+        table.setRowCount(0)
         table.setColumnCount(len(columns))
-        table.setHorizontalHeaderLabels(columns)
-        table.setRowCount(len(rows))
+        if columns:
+            table.setHorizontalHeaderLabels(columns)
+        if not columns:
+            return
 
+        table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             for col_index, column in enumerate(columns):
                 value = row.get(column, "")
-                display_value = self._format_cell_value(value)
-                item = QtWidgets.QTableWidgetItem(display_value)
+                item = QtWidgets.QTableWidgetItem(self._format_cell_value(value))
                 if self._is_number(value):
                     item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
                 table.setItem(row_index, col_index, item)
@@ -424,8 +432,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(exc))
 
     def add_client(self) -> None:
-        choices = self.db.television_choices()
-        dialog = ClientDialog(choices, self)
+        dialog = ClientDialog(self.db.television_choices(), self)
         if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
         try:
