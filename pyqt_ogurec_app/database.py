@@ -61,7 +61,11 @@ class DatabaseManager:
         return [(row["name"], row["type"]) for row in rows]
 
     def list_views(self) -> list[str]:
-        return [name for name, kind in self.object_names() if kind == "view"]
+        return [
+            name
+            for name, kind in self.object_names()
+            if kind == "view" and name != "clients"
+        ]
 
     def list_manufacturers(self) -> list[str]:
         rows = self.query(
@@ -305,7 +309,9 @@ class DatabaseManager:
             """
             SELECT COUNT(*)
             FROM sqlite_master
-            WHERE type = 'view' AND name NOT LIKE 'sqlite_%'
+            WHERE type = 'view'
+              AND name NOT LIKE 'sqlite_%'
+              AND name <> 'clients'
             """
         ) or 0
         average_price = self.scalar("SELECT ROUND(AVG(price), 2) FROM televisions") or 0
