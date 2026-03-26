@@ -58,4 +58,3 @@ def authenticate(username: str, password: str) -> Optional[User]:
         can_edit=record["can_edit"],
         can_delete=record["can_delete"],
     )
-

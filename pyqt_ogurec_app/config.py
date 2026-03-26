@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 APP_TITLE = "Магазин телевизоров"
-APP_SUBTITLE = "Управление базой ogurec.db"
+APP_SUBTITLE = "Работа с базой ogurec.db"
 ENV_DB_PATH_NAME = "OGUREC_DB_PATH"
 
 PACKAGE_ROOT = Path(__file__).resolve().parent

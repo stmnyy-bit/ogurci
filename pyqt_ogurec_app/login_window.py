@@ -20,6 +20,7 @@ class LoginDialog(QtWidgets.QDialog):
 
         self.username_edit = QtWidgets.QLineEdit()
         self.username_edit.setPlaceholderText("admin / manager / viewer")
+
         self.password_edit = QtWidgets.QLineEdit()
         self.password_edit.setPlaceholderText("Пароль")
         self.password_edit.setEchoMode(QtWidgets.QLineEdit.Password)

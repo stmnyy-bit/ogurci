@@ -13,17 +13,22 @@ class TelevisionDialog(QtWidgets.QDialog):
 
         self.tv_code_spin = QtWidgets.QSpinBox()
         self.tv_code_spin.setMaximum(999999)
+
         self.model_edit = QtWidgets.QLineEdit()
         self.model_edit.setPlaceholderText("Например, Samsung UE43DU7100")
+
         self.manufacturer_edit = QtWidgets.QLineEdit()
         self.manufacturer_edit.setPlaceholderText("Например, Samsung")
+
         self.diagonal_spin = QtWidgets.QSpinBox()
         self.diagonal_spin.setRange(32, 500)
+
         self.price_spin = QtWidgets.QDoubleSpinBox()
         self.price_spin.setRange(0, 99999999)
         self.price_spin.setDecimals(2)
         self.price_spin.setSingleStep(1000)
         self.price_spin.setSuffix(" руб.")
+
         self.discount_spin = QtWidgets.QSpinBox()
         self.discount_spin.setRange(0, 100)
 
@@ -72,10 +77,8 @@ class TelevisionDialog(QtWidgets.QDialog):
 class ClientDialog(QtWidgets.QDialog):
     def __init__(self, television_choices, parent=None, data=None):
         super().__init__(parent)
-        self.setWindowTitle("Заказ клиента")
+        self.setWindowTitle("Заказ")
         self.resize(520, 360)
-
-        self.television_choices = television_choices
 
         layout = QtWidgets.QFormLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -99,8 +102,10 @@ class ClientDialog(QtWidgets.QDialog):
 
         self.quantity_spin = QtWidgets.QSpinBox()
         self.quantity_spin.setRange(1, 9999)
+
         self.place_edit = QtWidgets.QLineEdit()
         self.place_edit.setPlaceholderText("Город доставки")
+
         self.discount_spin = QtWidgets.QSpinBox()
         self.discount_spin.setRange(0, 100)
 
@@ -109,7 +114,7 @@ class ClientDialog(QtWidgets.QDialog):
         layout.addRow("ФИО клиента:", self.full_name_edit)
         layout.addRow("Дата заказа:", self.order_date_edit)
         layout.addRow("Количество:", self.quantity_spin)
-        layout.addRow("Город / место:", self.place_edit)
+        layout.addRow("Город:", self.place_edit)
         layout.addRow("Скидка клиента (%):", self.discount_spin)
 
         self.button_box = QtWidgets.QDialogButtonBox(
@@ -145,7 +150,7 @@ class ClientDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Ошибка", "Введите ФИО клиента.")
             return
         if not self.place_edit.text().strip():
-            QtWidgets.QMessageBox.warning(self, "Ошибка", "Введите место заказа.")
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Введите город доставки.")
             return
         super().accept()
 
@@ -159,4 +164,3 @@ class ClientDialog(QtWidgets.QDialog):
             "place": self.place_edit.text().strip(),
             "discount_percent": self.discount_spin.value(),
         }
-
