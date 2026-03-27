@@ -1,11 +1,16 @@
-from PyQt5 import QtCore, QtWidgets
+from pathlib import Path
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class TelevisionDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, data=None):
         super().__init__(parent)
         self.setWindowTitle("Телевизор")
-        self.resize(460, 300)
+        self.resize(560, 460)
+
+        self.image_data = self._normalize_image_bytes(data.get("image_data")) if data else b""
+        self.image_filename = str(data.get("image_filename") or "").strip() if data else ""
 
         layout = QtWidgets.QFormLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -32,12 +37,37 @@ class TelevisionDialog(QtWidgets.QDialog):
         self.discount_spin = QtWidgets.QSpinBox()
         self.discount_spin.setRange(0, 100)
 
+        self.image_preview_label = QtWidgets.QLabel("Изображение не выбрано")
+        self.image_preview_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.image_preview_label.setMinimumSize(260, 160)
+        self.image_preview_label.setFrameShape(QtWidgets.QFrame.Box)
+
+        self.image_name_label = QtWidgets.QLabel("Будет создано автоматически")
+        self.image_name_label.setWordWrap(True)
+
+        self.choose_image_button = QtWidgets.QPushButton("Выбрать файл")
+        self.clear_image_button = QtWidgets.QPushButton("Очистить")
+
+        image_controls = QtWidgets.QHBoxLayout()
+        image_controls.addWidget(self.choose_image_button)
+        image_controls.addWidget(self.clear_image_button)
+        image_controls.addStretch(1)
+
+        image_widget = QtWidgets.QWidget()
+        image_layout = QtWidgets.QVBoxLayout(image_widget)
+        image_layout.setContentsMargins(0, 0, 0, 0)
+        image_layout.setSpacing(8)
+        image_layout.addWidget(self.image_preview_label)
+        image_layout.addWidget(self.image_name_label)
+        image_layout.addLayout(image_controls)
+
         layout.addRow("Код телевизора:", self.tv_code_spin)
         layout.addRow("Модель:", self.model_edit)
         layout.addRow("Производитель:", self.manufacturer_edit)
         layout.addRow("Диагональ (см):", self.diagonal_spin)
         layout.addRow("Цена:", self.price_spin)
         layout.addRow("Скидка (%):", self.discount_spin)
+        layout.addRow("Изображение:", image_widget)
 
         self.button_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
@@ -46,6 +76,9 @@ class TelevisionDialog(QtWidgets.QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
 
+        self.choose_image_button.clicked.connect(self.choose_image_file)
+        self.clear_image_button.clicked.connect(self.clear_image)
+
         if data:
             self.tv_code_spin.setValue(int(data.get("tv_code", 0)))
             self.model_edit.setText(str(data.get("model_name", "")))
@@ -53,6 +86,49 @@ class TelevisionDialog(QtWidgets.QDialog):
             self.diagonal_spin.setValue(int(data.get("diagonal_cm", 32)))
             self.price_spin.setValue(float(data.get("price", 0)))
             self.discount_spin.setValue(int(data.get("discount_percent", 0)))
+
+        self.update_image_preview()
+
+    def choose_image_file(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Выберите изображение телевизора",
+            "",
+            "Изображения (*.png *.jpg *.jpeg *.bmp *.webp);;Все файлы (*)",
+        )
+        if not path:
+            return
+
+        try:
+            self.image_data = Path(path).read_bytes()
+            self.image_filename = Path(path).name
+            self.update_image_preview()
+        except OSError as exc:
+            QtWidgets.QMessageBox.critical(self, "Ошибка", f"Не удалось открыть файл: {exc}")
+
+    def clear_image(self) -> None:
+        self.image_data = b""
+        self.image_filename = ""
+        self.update_image_preview()
+
+    def update_image_preview(self) -> None:
+        if self.image_data:
+            pixmap = QtGui.QPixmap()
+            if pixmap.loadFromData(self.image_data):
+                scaled = pixmap.scaled(
+                    260,
+                    160,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+                self.image_preview_label.setPixmap(scaled)
+                self.image_preview_label.setText("")
+                self.image_name_label.setText(self.image_filename or "Изображение из базы")
+                return
+
+        self.image_preview_label.setPixmap(QtGui.QPixmap())
+        self.image_preview_label.setText("Будет создано автоматически")
+        self.image_name_label.setText("При сохранении приложение создаст изображение по данным модели")
 
     def accept(self) -> None:
         if not self.model_edit.text().strip():
@@ -71,7 +147,19 @@ class TelevisionDialog(QtWidgets.QDialog):
             "diagonal_cm": self.diagonal_spin.value(),
             "price": self.price_spin.value(),
             "discount_percent": self.discount_spin.value(),
+            "image_data": self.image_data,
+            "image_filename": self.image_filename,
         }
+
+    @staticmethod
+    def _normalize_image_bytes(value) -> bytes:
+        if isinstance(value, memoryview):
+            value = value.tobytes()
+        if isinstance(value, bytearray):
+            value = bytes(value)
+        if isinstance(value, bytes):
+            return value
+        return b""
 
 
 class ClientDialog(QtWidgets.QDialog):

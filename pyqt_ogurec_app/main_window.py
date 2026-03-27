@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from pyqt_ogurec_app.config import APP_TITLE
 from pyqt_ogurec_app.database import ALL_MANUFACTURERS, ALL_PLACES, DatabaseManager
@@ -22,7 +22,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_view_columns = []
 
         self.setWindowTitle(f"{APP_TITLE} - {user.display_name}")
-        self.resize(1200, 820)
+        self.resize(1280, 860)
 
         self._build_ui()
         self._connect_signals()
@@ -56,9 +56,9 @@ class MainWindow(QtWidgets.QMainWindow):
         selector_row = QtWidgets.QHBoxLayout()
         selector_row.addWidget(QtWidgets.QLabel("Показать таблицу:"))
         self.table_selector = QtWidgets.QComboBox()
-        self.table_selector.addItem("televisions", "televisions")
-        self.table_selector.addItem("customers", "customers")
-        self.table_selector.addItem("orders", "orders")
+        self.table_selector.addItem("Телевизоры", "televisions")
+        self.table_selector.addItem("Клиенты", "customers")
+        self.table_selector.addItem("Заказы", "orders")
         selector_row.addWidget(self.table_selector)
         selector_row.addStretch(1)
         layout.addLayout(selector_row)
@@ -83,7 +83,13 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.browse_db_button, 0, 2)
         layout.addWidget(self.reconnect_button, 0, 3)
 
-        layout.addWidget(QtWidgets.QLabel("Структура базы: televisions, customers, orders"), 1, 0, 1, 4)
+        layout.addWidget(
+            QtWidgets.QLabel("Структура базы: televisions, customers, orders"),
+            1,
+            0,
+            1,
+            4,
+        )
         return group
 
     def _build_televisions_group(self) -> QtWidgets.QGroupBox:
@@ -126,8 +132,17 @@ class MainWindow(QtWidgets.QMainWindow):
             button_row.addWidget(button)
         layout.addLayout(button_row)
 
+        content_layout = QtWidgets.QHBoxLayout()
         self.television_table = self._create_table_widget()
-        layout.addWidget(self.television_table, stretch=1)
+        content_layout.addWidget(self.television_table, stretch=3)
+        (
+            tv_preview_group,
+            self.tv_preview_title,
+            self.tv_image_label,
+            self.tv_preview_details,
+        ) = self._build_image_preview_group("Изображение телевизора")
+        content_layout.addWidget(tv_preview_group, stretch=2)
+        layout.addLayout(content_layout, stretch=1)
         return group
 
     def _build_customers_group(self) -> QtWidgets.QGroupBox:
@@ -168,7 +183,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         filter_layout = QtWidgets.QGridLayout()
         self.order_search_edit = QtWidgets.QLineEdit()
-        self.order_search_edit.setPlaceholderText("Номер заказа, customer_id, tv_code или дата")
+        self.order_search_edit.setPlaceholderText("Номер заказа, клиент, tv_code или дата")
         self.order_sort_combo = QtWidgets.QComboBox()
         self.order_sort_combo.addItem("Новые сверху", "date_desc")
         self.order_sort_combo.addItem("Старые сверху", "date_asc")
@@ -195,8 +210,17 @@ class MainWindow(QtWidgets.QMainWindow):
             button_row.addWidget(button)
         layout.addLayout(button_row)
 
+        content_layout = QtWidgets.QHBoxLayout()
         self.order_table = self._create_table_widget()
-        layout.addWidget(self.order_table, stretch=1)
+        content_layout.addWidget(self.order_table, stretch=3)
+        (
+            order_preview_group,
+            self.order_preview_title,
+            self.order_image_label,
+            self.order_preview_details,
+        ) = self._build_image_preview_group("Изображение по заказу")
+        content_layout.addWidget(order_preview_group, stretch=2)
+        layout.addLayout(content_layout, stretch=1)
         return group
 
     def _build_views_group(self) -> QtWidgets.QGroupBox:
@@ -230,6 +254,29 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.view_sql_text)
         return group
 
+    def _build_image_preview_group(self, title: str):
+        group = QtWidgets.QGroupBox(title)
+        group.setMinimumWidth(320)
+        layout = QtWidgets.QVBoxLayout(group)
+        layout.setSpacing(10)
+
+        title_label = QtWidgets.QLabel("Выберите запись в таблице")
+        title_label.setWordWrap(True)
+
+        image_label = QtWidgets.QLabel("Нет изображения")
+        image_label.setAlignment(QtCore.Qt.AlignCenter)
+        image_label.setMinimumSize(300, 220)
+        image_label.setFrameShape(QtWidgets.QFrame.Box)
+
+        details_label = QtWidgets.QLabel("")
+        details_label.setWordWrap(True)
+        details_label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+
+        layout.addWidget(title_label)
+        layout.addWidget(image_label, stretch=1)
+        layout.addWidget(details_label)
+        return group, title_label, image_label, details_label
+
     def _create_table_widget(self) -> QtWidgets.QTableWidget:
         return DataTable()
 
@@ -247,6 +294,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.edit_tv_button.clicked.connect(self.edit_television)
         self.delete_tv_button.clicked.connect(self.delete_television)
         self.television_table.itemDoubleClicked.connect(lambda *_: self.edit_television())
+        self.television_table.itemSelectionChanged.connect(self.update_television_preview)
 
         self.customer_search_edit.textChanged.connect(self.load_customers)
         self.customer_place_combo.currentTextChanged.connect(self.load_customers)
@@ -260,6 +308,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.edit_order_button.clicked.connect(self.edit_order)
         self.delete_order_button.clicked.connect(self.delete_order)
         self.order_table.itemDoubleClicked.connect(lambda *_: self.edit_order())
+        self.order_table.itemSelectionChanged.connect(self.update_order_preview)
 
         self.view_combo.currentTextChanged.connect(self.load_current_view)
         self.view_search_edit.textChanged.connect(self.filter_view_rows)
@@ -268,6 +317,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def change_table_page(self, index: int) -> None:
         self.table_stack.setCurrentIndex(max(index, 0))
+        table_name = self.table_selector.itemData(max(index, 0))
+        if table_name == "televisions":
+            self.update_television_preview()
+        elif table_name == "orders":
+            self.update_order_preview()
 
     def _apply_permissions(self) -> None:
         self.add_tv_button.setEnabled(self.user.can_add)
@@ -350,6 +404,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def load_televisions(self) -> None:
         if not self.db.connection:
             return
+
+        selected_row = self.selected_row(self.television_table, self.television_rows)
+        selected_tv_code = selected_row["tv_code"] if selected_row else None
+
         self.television_rows = self.db.get_televisions(
             search=self.tv_search_edit.text().strip(),
             manufacturer=self.tv_manufacturer_combo.currentText(),
@@ -361,6 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.television_rows,
             ["tv_code", "model_name", "manufacturer", "diagonal_cm", "price", "discount_percent"],
         )
+        self._restore_selection(self.television_table, self.television_rows, "tv_code", selected_tv_code)
 
     def load_customers(self) -> None:
         if not self.db.connection:
@@ -379,6 +438,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def load_orders(self) -> None:
         if not self.db.connection:
             return
+
+        selected_row = self.selected_row(self.order_table, self.order_rows)
+        selected_order_number = selected_row["order_number"] if selected_row else None
+
         self.order_rows = self.db.get_orders(
             search=self.order_search_edit.text().strip(),
             sort_mode=self.order_sort_combo.currentData(),
@@ -388,6 +451,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.order_rows,
             ["order_number", "customer_id", "tv_code", "order_date", "quantity", "discount_percent"],
         )
+        self._restore_selection(self.order_table, self.order_rows, "order_number", selected_order_number)
 
     def load_current_view(self) -> None:
         if not self.db.connection:
@@ -444,6 +508,129 @@ class MainWindow(QtWidgets.QMainWindow):
         if row_index < 0 or row_index >= len(rows):
             return None
         return rows[row_index]
+
+    def _restore_selection(self, table: QtWidgets.QTableWidget, rows, key: str, selected_value) -> None:
+        if not rows:
+            table.clearSelection()
+            if table is self.television_table:
+                self.clear_television_preview()
+            elif table is self.order_table:
+                self.clear_order_preview()
+            return
+
+        target_index = 0
+        if selected_value is not None:
+            for index, row in enumerate(rows):
+                if row.get(key) == selected_value:
+                    target_index = index
+                    break
+
+        table.setCurrentCell(target_index, 0)
+        table.selectRow(target_index)
+
+    def update_television_preview(self) -> None:
+        row = self.selected_row(self.television_table, self.television_rows)
+        if not row:
+            self.clear_television_preview()
+            return
+
+        title = f'{row["manufacturer"]} {row["model_name"]}'
+        details = (
+            f'Код: {row["tv_code"]}\n'
+            f'Диагональ: {row["diagonal_cm"]} см\n'
+            f'Цена: {self._format_price(row["price"])} руб.\n'
+            f'Скидка: {row["discount_percent"]}%'
+        )
+        self.set_preview_content(
+            self.tv_preview_title,
+            self.tv_image_label,
+            self.tv_preview_details,
+            title,
+            details,
+            row.get("image_data"),
+        )
+
+    def clear_television_preview(self) -> None:
+        self.clear_preview_content(
+            self.tv_preview_title,
+            self.tv_image_label,
+            self.tv_preview_details,
+            "Выберите телевизор в таблице",
+        )
+
+    def update_order_preview(self) -> None:
+        row = self.selected_row(self.order_table, self.order_rows)
+        if not row:
+            self.clear_order_preview()
+            return
+
+        title = f'Заказ № {row["order_number"]}'
+        details = (
+            f'Клиент: {row.get("customer_name", "")}\n'
+            f'Телевизор: {row.get("tv_manufacturer", "")} {row.get("tv_model_name", "")}\n'
+            f'Дата: {row["order_date"]}\n'
+            f'Количество: {row["quantity"]}\n'
+            f'Скидка клиента: {row["discount_percent"]}%'
+        )
+        self.set_preview_content(
+            self.order_preview_title,
+            self.order_image_label,
+            self.order_preview_details,
+            title,
+            details,
+            row.get("image_data"),
+        )
+
+    def clear_order_preview(self) -> None:
+        self.clear_preview_content(
+            self.order_preview_title,
+            self.order_image_label,
+            self.order_preview_details,
+            "Выберите заказ в таблице",
+        )
+
+    def set_preview_content(
+        self,
+        title_label: QtWidgets.QLabel,
+        image_label: QtWidgets.QLabel,
+        details_label: QtWidgets.QLabel,
+        title: str,
+        details: str,
+        image_data,
+    ) -> None:
+        title_label.setText(title)
+        details_label.setText(details)
+
+        raw_data = self._normalize_image_bytes(image_data)
+        pixmap = QtGui.QPixmap()
+        if raw_data and pixmap.loadFromData(raw_data):
+            target_size = image_label.size()
+            if target_size.width() < 120 or target_size.height() < 120:
+                target_size = QtCore.QSize(300, 220)
+            image_label.setPixmap(
+                pixmap.scaled(
+                    target_size,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+            )
+            image_label.setText("")
+            return
+
+        image_label.setPixmap(QtGui.QPixmap())
+        image_label.setText("Нет изображения")
+
+    def clear_preview_content(
+        self,
+        title_label: QtWidgets.QLabel,
+        image_label: QtWidgets.QLabel,
+        details_label: QtWidgets.QLabel,
+        empty_title: str,
+    ) -> None:
+        title_label.setText(empty_title)
+        details_label.clear()
+        image_label.setPixmap(QtGui.QPixmap())
+        image_label.setText("Нет изображения")
 
     def add_television(self) -> None:
         dialog = TelevisionDialog(self)
@@ -579,6 +766,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event) -> None:
         self.db.close()
         super().closeEvent(event)
+
+    @staticmethod
+    def _normalize_image_bytes(value) -> bytes:
+        if isinstance(value, memoryview):
+            value = value.tobytes()
+        if isinstance(value, bytearray):
+            value = bytes(value)
+        if isinstance(value, bytes):
+            return value
+        return b""
+
+    @staticmethod
+    def _format_price(value) -> str:
+        return f"{float(value):,.0f}".replace(",", " ")
 
     @staticmethod
     def _format_cell_value(value) -> str:
