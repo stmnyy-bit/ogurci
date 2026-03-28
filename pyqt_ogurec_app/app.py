@@ -1,8 +1,27 @@
 import sys
+import types
 from pathlib import Path
 
-if __package__ is None or __package__ == "":
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+def _bootstrap_package() -> None:
+    if __package__ not in (None, "") and "pyqt_ogurec_app" in sys.modules:
+        return
+
+    package_root = Path(__file__).resolve().parent
+    project_root = package_root.parent
+
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    package = sys.modules.get("pyqt_ogurec_app")
+    if package is None:
+        package = types.ModuleType("pyqt_ogurec_app")
+        package.__file__ = str(package_root / "__init__.py")
+        package.__path__ = [str(package_root)]
+        sys.modules["pyqt_ogurec_app"] = package
+
+
+_bootstrap_package()
 
 from PyQt5 import QtWidgets
 
