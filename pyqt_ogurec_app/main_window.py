@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from pyqt_ogurec_app.config import APP_TITLE
+from pyqt_ogurec_app.config import APP_TITLE, resolve_default_db_path
 from pyqt_ogurec_app.database import ALL_MANUFACTURERS, ALL_PLACES, DatabaseManager
 from pyqt_ogurec_app.dialogs import ClientDialog, TelevisionDialog
 from pyqt_ogurec_app.widgets import DataTable
@@ -332,10 +332,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.delete_order_button.setEnabled(self.user.can_delete)
 
     def choose_database_file(self) -> None:
+        current_path = Path(self.db_path_edit.text().strip() or resolve_default_db_path())
+        start_dir = current_path.parent if current_path.suffix else current_path
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Выберите файл базы данных",
-            self.db_path_edit.text().strip() or str(Path.cwd()),
+            str(start_dir),
             "SQLite (*.db *.sqlite *.sqlite3);;Все файлы (*)",
         )
         if path:
@@ -343,20 +345,22 @@ class MainWindow(QtWidgets.QMainWindow):
             self.connect_database()
 
     def connect_database(self, initial: bool = False) -> None:
-        path = self.db_path_edit.text().strip()
+        path = self.db_path_edit.text().strip() or resolve_default_db_path()
         if not path:
             if not initial:
                 QtWidgets.QMessageBox.warning(self, "Ошибка", "Укажите путь к файлу базы данных.")
             return
         try:
             self.db.set_path(path)
+            path = self.db.db_path
+            self.db_path_edit.setText(self.db.db_path)
             self.refresh_reference_data()
             self.refresh_dashboard()
             self.load_televisions()
             self.load_customers()
             self.load_orders()
             self.load_current_view()
-            db_name = Path(path).name
+            db_name = Path(self.db.db_path).name
             self.setWindowTitle(f"{APP_TITLE} - {self.user.display_name} - {db_name}")
             self.statusBar().showMessage(f"Подключено к базе: {path}")
         except Exception as exc:
@@ -745,10 +749,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.current_view_columns:
             return
         view_name = self.view_combo.currentText().strip() or "view"
+        default_dir = Path(self.db.db_path).parent if self.db.db_path else Path.cwd()
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self,
             "Сохранить CSV",
-            str(Path.cwd() / f"{view_name}.csv"),
+            str(default_dir / f"{view_name}.csv"),
             "CSV (*.csv)",
         )
         if not path:

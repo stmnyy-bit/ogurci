@@ -14,15 +14,16 @@ _IMAGE_APP = None
 
 class DatabaseManager:
     def __init__(self, db_path: str):
-        self.db_path = db_path
+        self.db_path = self._normalize_db_path(db_path)
         self.connection: Optional[sqlite3.Connection] = None
 
     def connect(self) -> None:
         if self.connection:
             self.connection.close()
-        db_file = Path(self.db_path)
+        db_file = self._normalize_db_file(self.db_path)
         if not db_file.exists():
             raise FileNotFoundError(f"Файл базы данных не найден: {db_file}")
+        self.db_path = str(db_file)
         self.connection = sqlite3.connect(str(db_file), timeout=5)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
@@ -36,7 +37,7 @@ class DatabaseManager:
             self.connection = None
 
     def set_path(self, db_path: str) -> None:
-        self.db_path = db_path
+        self.db_path = self._normalize_db_path(db_path)
         self.connect()
 
     def query(self, sql: str, params: Iterable = ()) -> list[sqlite3.Row]:
@@ -683,3 +684,11 @@ class DatabaseManager:
         if not self.connection:
             raise RuntimeError("Соединение с базой данных не установлено.")
         return self.connection
+
+    @staticmethod
+    def _normalize_db_path(db_path: str) -> str:
+        return str(DatabaseManager._normalize_db_file(db_path))
+
+    @staticmethod
+    def _normalize_db_file(db_path: str) -> Path:
+        return Path(db_path).expanduser().resolve(strict=False)
